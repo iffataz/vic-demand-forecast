@@ -150,3 +150,55 @@ Each entry records what I decided, what else I considered, and why.
 **Alternatives:** Type the dates in by hand. Look up holidays in the Python training code.
 
 **Why:** This is exactly what seeds are for: small, static reference data that belongs in version control. Generating it from a maintained library avoids typos in dates that move every year, like Easter and the AFL Grand Final Friday. Keeping it in dbt means the holiday flag sits in the curated table with the other features, documented and tested, rather than hidden in the model code. One known simplification: holidays are matched on the market date, which can be an hour off from local midnight in summer.
+
+## 16. Time-based train, validation and test split
+
+**Decision:**
+- Train: 9 November 2024 to 30 April 2026.
+- Validation: May to July 2026.
+- Test: August to October 2026.
+
+**Alternatives:** A random split. Cross-validation with random folds.
+
+**Why:** Neighbouring hours are almost identical. A random split puts near-copies of test hours into training, so the score looks much better than it would in real use. That's data leakage. Splitting by time matches how the model would be used: learn from the past, predict the future. Training covers both summers and one winter. The test set is the most recent three months and is scored exactly once, at the end. Caveat: the test covers late winter and spring only, so it doesn't show how the model copes with summer heatwaves. With more time I'd use rolling-origin backtesting: repeat the split at several cut-off dates and average the results.
+
+## 17. Two naive baselines before any model
+
+**Decision:** Score "same hour last week" (`lag_168h`) and "same hour yesterday" (`lag_24h`) on exactly the same periods as the model.
+
+**Alternatives:** Report the model's error on its own.
+
+**Why:** An error of 391 MW means nothing without a reference point. A baseline is the score a one-line rule gets. If a model can't beat it, the extra complexity isn't worth it. It also turns the result into something a client understands: "29% lower error than last week's actuals".
+
+## 18. LightGBM, with early stopping on the validation set
+
+**Decision:** LightGBM regressor with default-ish settings (learning rate 0.05, 31 leaves). It allows up to 2,000 trees, but stops once validation MAE hasn't improved for 100 rounds.
+
+**Alternatives:** scikit-learn's HistGradientBoostingRegressor. Linear regression. A neural network.
+
+**Why:**
+- **Gradient boosting** is the standard strong choice for tabular data with mixed features. It handles non-linear effects, like the hour-of-day shape and the summer and winter peaks, without hand-built interaction terms.
+- **LightGBM over HistGradientBoosting:** they use the same algorithm (HistGradientBoosting was modelled on LightGBM), but LightGBM is the industry standard, has native MLflow support and gives feature importances directly.
+- **Not a neural network:** with 13,000 rows it would be overkill.
+- **Early stopping:** the validation set picks the number of trees, so the test set stays untouched. No hyperparameter search, to keep it within the evening.
+
+## 19. MAE and MAPE as metrics
+
+**Decision:** Report MAE (in MW) and MAPE (in percent) on validation and test.
+
+**Alternatives:** RMSE. Peak-hour-only error.
+
+**Why:** MAE is in the units people care about, and it's easy to explain: "on average we're off by about 390 MW". MAPE makes results comparable across regions and seasons. MAPE breaks down when actual values get near zero, but Victorian demand never fell below 1,225 MW, so it's safe here. RMSE punishes large misses more heavily, which matters for peak planning. It would be a sensible addition.
+
+## 20. MLflow tracking with a local SQLite store, model registered
+
+**Decision:** Log every run to `mlflow.db` (SQLite) in an experiment called `vic-day-ahead-demand`:
+- parameters: split dates, features, hyperparameters, best iteration
+- metrics: validation and test MAE and MAPE
+- for LightGBM: the model and feature importances, with the model registered as `vic_day_ahead_demand_lgbm`
+
+Features are converted to float, so the logged input schema can accept missing values later.
+
+**Alternatives:** MLflow's plain file store (`mlruns/` only). Printing results to the console or a spreadsheet.
+
+**Why:** Tracking makes every result reproducible: you can see exactly which data split and settings produced which number, and compare runs side by side in the UI. The model registry needs a database behind it, and SQLite is the zero-setup option. In production this would be a shared tracking server backed by Postgres, with artifacts in S3 or Azure Blob storage.

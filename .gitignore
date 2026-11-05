@@ -18,3 +18,7 @@ dbt_packages/
 # MLflow run store
 mlruns/
 mlartifacts/
+mlflow.db
+
+# Local editor / tool settings
+.claude/

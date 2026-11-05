@@ -2,3 +2,5 @@ requests
 pandas
 dbt-duckdb
 holidays
+lightgbm
+mlflow
