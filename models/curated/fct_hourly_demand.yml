@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: fct_hourly_demand
+    description: >
+      One row per hour (market time) with the demand to predict and day-ahead
+      features. Every feature uses only data from 24 or more hours earlier.
+      Lag and rolling columns are null for the first 8 days, where there is
+      not enough history yet.
+    columns:
+      - name: hour_start
+        description: Start of the hour, market time (AEST).
+        data_tests:
+          - not_null
+          - unique
+      - name: demand_mw
+        description: Target. Average demand over the hour in MW (equal to MWh used in the hour).
+        data_tests:
+          - not_null
+          - within_range:
+              arguments:
+                min_value: 0
+                max_value: 14000
+      - name: n_intervals
+        description: Number of 5-minute intervals in the hour. Must be 12 for a complete hour.
+        data_tests:
+          - within_range:
+              arguments:
+                min_value: 12
+                max_value: 12
+      - name: lag_24h
+        description: Demand in the same hour yesterday.
+      - name: lag_168h
+        description: Demand in the same hour last week. Also the naive baseline forecast.
+      - name: rolling_mean_24h
+        description: Mean demand over the 24 hours ending 24 hours before this hour.
+      - name: rolling_mean_168h
+        description: Mean demand over the 7 days ending 24 hours before this hour.
+      - name: hour_of_day
+        description: Hour in market time (0 to 23).
+      - name: local_hour_of_day
+        description: Hour in Melbourne local time, which follows daylight saving.
+      - name: day_of_week
+        description: 1 = Monday, 7 = Sunday.
+      - name: is_weekend
+      - name: month
+      - name: is_public_holiday
+        description: True if the market date is a Victorian public holiday.
