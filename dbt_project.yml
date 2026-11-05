@@ -1,0 +1,12 @@
+name: vic_demand
+version: "1.0.0"
+config-version: 2
+
+# Which connection in profiles.yml to use.
+profile: vic_demand
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+clean-targets: ["target", "dbt_packages"]

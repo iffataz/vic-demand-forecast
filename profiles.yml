@@ -1,0 +1,10 @@
+# Connection settings for dbt. Kept in the repo because it points at a local
+# DuckDB file and contains no secrets. For a cloud warehouse this would live
+# in ~/.dbt/ and read credentials from environment variables.
+vic_demand:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: vic_demand.duckdb
+      threads: 4

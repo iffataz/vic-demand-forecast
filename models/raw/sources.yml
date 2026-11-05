@@ -1,0 +1,22 @@
+version: 2
+
+sources:
+  - name: aemo
+    description: AEMO aggregated price and demand data, downloaded by scripts/download_aemo.py.
+    tables:
+      - name: price_and_demand
+        description: >
+          5-minute price and demand for VIC1, one CSV per month, read as-is.
+          Every column is text; typing happens in staging. SETTLEMENTDATE marks
+          the END of each 5-minute interval, in market time (AEST, no daylight saving).
+        meta:
+          # DuckDB reads the CSV files directly; no separate load step.
+          external_location: "read_csv('data/raw/PRICE_AND_DEMAND_*_VIC1.csv', header = true, all_varchar = true, filename = true)"
+        columns:
+          - name: REGION
+          - name: SETTLEMENTDATE
+          - name: TOTALDEMAND
+          - name: RRP
+          - name: PERIODTYPE
+          - name: filename
+            description: Source file each row came from, added by DuckDB.

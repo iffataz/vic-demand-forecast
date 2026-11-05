@@ -62,3 +62,21 @@ Each entry records what I decided, what else I considered, and why.
 **Alternatives:** dbt v2, which is now the default for new installations.
 
 **Why:** The DuckDB adapter, most documentation and tutorials, and most existing team projects are on v1. The core ideas (models, `ref`, sources, tests, materialisations) carry over, so learning on v1 isn't wasted. On a real team I'd match whatever version the existing projects use.
+
+## 8. dbt project at the repo root, with profiles.yml committed
+
+**Decision:** `dbt_project.yml` and `models/` sit at the repo root. `profiles.yml` is in the repo, not in `~/.dbt/`.
+
+**Alternatives:** A `dbt/` subfolder. Keeping `profiles.yml` in the home directory, which is dbt's default. Generating the project with `dbt init`.
+
+**Why:** With one dbt project in a small repo, the root is simplest: commands run without `--project-dir`. `profiles.yml` normally stays out of the repo because it holds passwords. Mine only points at a local DuckDB file, so committing it means anyone can clone the repo and run it straight away. For Redshift or BigQuery I'd keep it outside the repo and read credentials from environment variables. I wrote the config by hand rather than using `dbt init`, so there are no example files to delete and I know what every line does.
+
+## 9. The raw layer is a dbt source that reads the CSVs directly, all columns as text
+
+**Decision:** Declare the CSV files as a dbt source. DuckDB reads them in place with `read_csv(..., all_varchar = true, filename = true)`.
+
+**Alternatives:** A Python script that loads the CSVs into a `raw` table in DuckDB first. dbt seeds.
+
+**Why:** A source is dbt's name for data it didn't create. Declaring it means models refer to `source('aemo', 'price_and_demand')` instead of a file path, and dbt can draw the lineage from raw files to the final table. DuckDB can query CSVs directly, so a separate load step would add work without adding anything. In a warehouse, the load step would be Fivetran or an Airflow task, and the source would point at the table it loaded. Reading every column as text keeps the raw layer truly as-is: no type guessing, and every conversion happens in staging, where it's visible and tested. The `filename` column lets me trace any row back to its file.
+
+**Check:** 210,240 rows, which is exactly 730 days × 288 five-minute intervals, across 24 files.

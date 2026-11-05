@@ -13,6 +13,7 @@ data/
 target/
 logs/
 dbt_packages/
+.user.yml
 
 # MLflow run store
 mlruns/
