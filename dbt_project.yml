@@ -10,3 +10,11 @@ test-paths: ["tests"]
 macro-paths: ["macros"]
 
 clean-targets: ["target", "dbt_packages"]
+
+# Default materialisation per layer folder.
+models:
+  vic_demand:
+    staging:
+      +materialized: view
+    curated:
+      +materialized: table

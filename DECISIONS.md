@@ -80,3 +80,30 @@ Each entry records what I decided, what else I considered, and why.
 **Why:** A source is dbt's name for data it didn't create. Declaring it means models refer to `source('aemo', 'price_and_demand')` instead of a file path, and dbt can draw the lineage from raw files to the final table. DuckDB can query CSVs directly, so a separate load step would add work without adding anything. In a warehouse, the load step would be Fivetran or an Airflow task, and the source would point at the table it loaded. Reading every column as text keeps the raw layer truly as-is: no type guessing, and every conversion happens in staging, where it's visible and tested. The `filename` column lets me trace any row back to its file.
 
 **Check:** 210,240 rows, which is exactly 730 days × 288 five-minute intervals, across 24 files.
+
+## 10. Staging keeps market time (AEST) as the timestamp, not Melbourne local time
+
+**Decision:** Leave timestamps in AEMO market time (UTC+10 all year). Add an `interval_start` column, 5 minutes before AEMO's interval-ending timestamp.
+
+**Alternatives:** Convert to Melbourne local time (AEST in winter, AEDT in summer). Convert to UTC.
+
+**Why:** Market time never changes its clocks, so every day has exactly 24 hours and 288 intervals. Local time has a 23-hour day when daylight saving starts and a 25-hour day when it ends. That would break the unique-timestamp test and make "same hour yesterday" harder to calculate. UTC would also be regular, but it's harder to read and doesn't match AEMO's own data. The catch is that people follow clock time: the evening peak shows up an hour earlier in market time during summer. I handle that with a feature in the curated layer, not by changing the key. `interval_start` makes hourly bucketing a simple truncate, so nobody has to remember the interval-ending rule later.
+
+## 11. Staging uses strict casts and row_number() deduplication, materialised as a view
+
+**Decision:** Convert types with `strptime` and `cast`, which stop the build on a bad value. Deduplicate with `row_number()`, keeping one row per interval. Staging models are views; curated models are tables.
+
+**Alternatives:** `try_cast`, which turns bad values into NULL. `select distinct`. Tables everywhere.
+
+**Why:** A strict cast fails loudly, which matches the rest of the pipeline. `try_cast` would hide problems as NULLs. `distinct` only removes rows that are identical in every column, so if AEMO republished an interval with a corrected value, both rows would survive. `row_number()` guarantees one row per timestamp. The data has no duplicates today, but staging is where you defend against them. A view costs nothing to build and is always current, which suits a light clean-up step. Curated is a table because the model training reads it repeatedly.
+
+## 12. Tests: built-in, one generic custom test, one singular test
+
+**Decision:**
+- `not_null` and `unique` on the timestamps.
+- A reusable `within_range` generic test on demand (0 to 14,000 MW).
+- A singular `assert_no_missing_intervals` test.
+
+**Alternatives:** The `dbt_utils` or `dbt_expectations` packages, which already include range and gap tests. Tight demand bounds.
+
+**Why:** A row count can't prove completeness, because a missing interval and a duplicate cancel out. So uniqueness and gaps are checked separately. The gap test builds every expected 5-minute timestamp and returns any that are missing. I wrote the tests myself rather than adding a package, to learn how dbt tests work: a test is a query that returns bad rows, and zero rows is a pass. On a real team I'd use `dbt_utils`. The demand bounds are wide on purpose. Real demand ranged from 1,225 MW (sunny spring middle-of-the-day with lots of rooftop solar) to 10,784 MW (heatwave), and a 10,000 MW limit would have failed on 36 genuine intervals. The test is meant to catch broken data, like wrong units or garbage values, not real extremes.

@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: stg_price_and_demand
+    description: >
+      5-minute price and demand for VIC1, typed and deduplicated.
+      Timestamps are market time (AEST, UTC+10, no daylight saving).
+    columns:
+      - name: interval_start
+        description: Start of the 5-minute interval. Use this for hourly bucketing.
+        data_tests:
+          - not_null
+          - unique
+      - name: interval_end
+        description: End of the interval, as published by AEMO (SETTLEMENTDATE).
+        data_tests:
+          - not_null
+          - unique
+      - name: demand_mw
+        description: Total operational demand in megawatts (AEMO TOTALDEMAND).
+        data_tests:
+          - not_null
+          - within_range:
+              arguments:
+                min_value: 0
+                max_value: 14000
+      - name: price_aud_mwh
+        description: Regional reference price in AUD per MWh (AEMO RRP).
+        data_tests:
+          - not_null
