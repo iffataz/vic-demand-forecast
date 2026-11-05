@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+
+# Raw data (downloaded by scripts/download_aemo.py)
+data/
+
+# DuckDB database files
+*.duckdb
+*.duckdb.wal
+
+# dbt build output
+target/
+logs/
+dbt_packages/
+
+# MLflow run store
+mlruns/
+mlartifacts/
